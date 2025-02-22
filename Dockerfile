@@ -1,36 +1,34 @@
-FROM alpine
+FROM alpine:3.21.3 AS builder
 
-MAINTAINER Lednerb <code@lednerb.de>
-
-WORKDIR /tmp
-
-# All-in-One RUN for a very small image size (< 5 MB)
+# hadolint ignore=DL3018
 RUN apk add --no-cache \
 	gcc \
 	g++ \
 	make \
 	git \
 	cvs \
-	zlib-dev \
+	zlib-dev
 
-	&& cvs -d :pserver:cvs@cvs.fefe.de:/cvs -z9 co libowfat \
-	&& cd libowfat \
-	&& make \
-	&& cd ../ \
+WORKDIR /build
 
-	&& git clone git://erdgeist.org/opentracker \
-		&& cd opentracker \
-		&& make \
+RUN cvs -d :pserver:cvs@cvs.fefe.de:/cvs -z9 co libowfat
+WORKDIR /build/libowfat
+RUN make
 
-	&& mv /tmp/opentracker/opentracker /bin/ \
+WORKDIR /build
 
-	&& apk del gcc g++ make git cvs zlib-dev \
-	&& rm -rf /var/cache/apk/* /tmp/* 
+RUN git clone git://erdgeist.org/opentracker
+WORKDIR /build/opentracker
+RUN make
 
-COPY ./opentracker.conf /etc/opentracker/opentracker.conf
-COPY ./whitelist.txt	/etc/opentracker/whitelist.txt
-COPY ./blacklist.txt	/etc/opentracker/blacklist.conf
+FROM alpine:3.21.3
+
+LABEL maintainer="Avi Langburd <avi@langburd.com>"
+
+COPY --from=builder /build/opentracker/opentracker /usr/local/bin/opentracker
+
+COPY . /etc/opentracker/
 
 EXPOSE 6969
 
-CMD opentracker -f /etc/opentracker/opentracker.conf
+CMD ["opentracker", "-f", "/etc/opentracker/opentracker.conf"]
